@@ -39,12 +39,22 @@
       }
 
       #control {
+        margin-top: 20px;
         background: #fff;
         padding: 5px;
         font-size: 14px;
         font-family: Arial;
         border: 1px solid #ccc;
         box-shadow: 0 2px 2px rgba(33, 33, 33, 0.4);
+        display: none;
+      }
+
+      #destinations {
+        width: 100%;
+      }
+
+      #error {
+        color: red;
         display: none;
       }
 
@@ -62,68 +72,107 @@
     </style>
     <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true"></script>
     <script>
-var directionsDisplay;
-var directionsService = new google.maps.DirectionsService();
+        var directionsDisplay;
+        var directionsService = new google.maps.DirectionsService();
 
-function initialize() {
-  directionsDisplay = new google.maps.DirectionsRenderer();
-  var london = new google.maps.LatLng(51.5072, -0.1275);
-  var mapOptions = {
-    zoom:13,
-    center: london
-  };
-  var map = new google.maps.Map(document.getElementById('map-canvas'),
-      mapOptions);
-  directionsDisplay.setMap(map);
-  directionsDisplay.setPanel(document.getElementById('directions-panel'));
+        function initialize() {
+          directionsDisplay = new google.maps.DirectionsRenderer();
+          var london = new google.maps.LatLng(51.5072, -0.1275);
+          var mapOptions = {
+            zoom:13,
+            center: london
+          };
+          var map = new google.maps.Map(document.getElementById('map-canvas'),
+              mapOptions);
+          directionsDisplay.setMap(map);
+          directionsDisplay.setPanel(document.getElementById('directions-panel'));
 
-  var control = document.getElementById('control');
-  control.style.display = 'block';
-  map.controls[google.maps.ControlPosition.TOP_CENTER].push(control);
-}
+          var control = document.getElementById('control');
+          control.style.display = 'block';
+          map.controls[google.maps.ControlPosition.TOP_CENTER].push(control);
+        }
 
-function calcRoute() {
-  var start = document.getElementById('start').value;
-  var end = document.getElementById('end').value;
-  var request = {
-    origin: start,
-    destination: end,
-    travelMode: google.maps.TravelMode.DRIVING,
-    unitSystem: google.maps.UnitSystem.IMPERIAL
-  };
-  directionsService.route(request, function(response, status) {
-    // console.log("status="+JSON.stringify(status));
-    // console.log("reponse="+JSON.stringify(response));
-    if (status == google.maps.DirectionsStatus.OK) {
-      directionsDisplay.setDirections(response);
-      var meters = response.routes[0].legs[0].distance.value;
-      var miles = meters * 0.000621371192;
-      var mpl = document.getElementById('mpl').value;
-      var gasprice = document.getElementById('gasprice').value;
-      var tripcost = gasprice * (miles/mpl) / 100;
-      document.getElementById('tripcost').innerHTML = '£ ' + tripcost.toFixed(2);
-    }
-  });
-}
+        function calcRoute() {
+          // Hide error panel
+          document.getElementById('error').style.display = "none"
 
-google.maps.event.addDomListener(window, 'load', initialize);
+          var isNotEmpty = function(str){ return str.length };
+          var destinations = document
+                .getElementById('destinations')
+                .value
+                .split("|")
+                .filter(isNotEmpty);
+
+          var start = destinations.shift();
+          var end = destinations.pop();
+          if ( !start || !end || !start.length || !end.length){
+            document.getElementById('error').innerHTML = "You must have at least two destinations. e.g. 'A|B'"
+            document.getElementById('error').style.display = "block"
+            return;
+          }
+
+          var destinationsAsWaypoints =
+            destinations
+                .map(
+                    function(addr){
+                        return {
+                            location: addr,
+                            stopover: true
+                        };
+                    });
+
+          var request = {
+            origin: start,
+            destination: end,
+            optimizeWaypoints: true,
+            waypoints: destinationsAsWaypoints,
+            travelMode: google.maps.TravelMode.DRIVING,
+            unitSystem: google.maps.UnitSystem.IMPERIAL
+          };
+          console.log(request);
+
+          directionsService.route(request, function(response, status) {
+            console.log("status="+JSON.stringify(status));
+            console.log("reponse="+JSON.stringify(response));
+            if (status == google.maps.DirectionsStatus.OK) {
+              directionsDisplay.setDirections(response);
+
+              var gaspricePerLitre = document.getElementById('gasprice').value;
+
+              var distInMetres = response.routes[0].legs[0].distance.value;
+              var distInMiles = distInMetres * 0.000621371192;
+
+              var mpg = document.getElementById('mpg').value;
+              var mpl = mpg * 0.219969248;
+
+              var tripcost = gaspricePerLitre * (distInMiles/mpl) / 100;
+              document.getElementById('tripcost').innerHTML = '£ ' + tripcost.toFixed(2);
+            }else{
+                document.getElementById('tripcost').innerHTML = "Error: " + status;
+            }
+          });
+        }
+
+        google.maps.event.addDomListener(window, 'load', initialize);
 
     </script>
   </head>
   <body>
     <div id="control">
-        <b>Start: </b>
-        <input type="text" value="SW1A 1AA" id="start"/>
-        <b>End: </b>
-        <input type="text" value="Wembley Stadium" id="end"/>
+        <b>Destinations separated with '|': </b>
+        <div>
+            <textarea id="destinations">South Kensington | Green Park | Sloane Square | St.James's Park | Knightsbridge | Hyde Park Corner | South Kensington</textarea>
+        </div>
         <button onclick="calcRoute();">Calculate!</button>
         <br>
-        <b>Gas price (pence): </b>
+        <b>Gas price (pence/L): </b>
         <input type="number" class="shortInput" value="20" id="gasprice"/>
-        <b>MPL: </b>
-        <input type="number" class="shortInput" value="50" id="mpl"/>
+        <b>MPG: </b>
+        <input type="number" class="shortInput" value="50" id="mpg"/>
         <b>Trip Cost: <span id="tripcost">???</span></b>
+        <div><span id="error">error!</span></div>
     </div>
+
     <div id="directions-panel"></div>
     <div id="map-canvas"></div>
   </body>
