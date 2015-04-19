@@ -139,8 +139,13 @@
 
               var gaspricePerLitre = document.getElementById('gasprice').value;
 
-              var distInMetres = response.routes[0].legs[0].distance.value;
-              var distInMiles = distInMetres * 0.000621371192;
+              var distancesInMetresByLegs = response.routes[0].legs.map(
+                    function(leg){ return leg.distance.value; }
+                );
+
+              var totalDistInMetres = distancesInMetresByLegs.reduce(function(x,y){ return x+y; });
+
+              var distInMiles = totalDistInMetres * 0.000621371192;
 
               var mpg = document.getElementById('mpg').value;
               var mpl = mpg * 0.219969248;
